@@ -1,5 +1,6 @@
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
+import pandas as pd
 
 @dataclass
 class Song:
@@ -38,27 +39,71 @@ class Recommender:
         self.songs = songs
 
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
-        # TODO: Implement recommendation logic
-        return self.songs[:k]
+        scored = []
+        for song in self.songs:
+            score = 0.0
+            if song.genre == user.favorite_genre:
+                score += 3.0
+            if song.mood == user.favorite_mood:
+                score += 2.0
+            score += 2.0 * (1 - abs(song.energy - user.target_energy))
+            if user.likes_acoustic and song.acousticness > 0.6:
+                score += 1.0
+            elif not user.likes_acoustic and song.acousticness < 0.4:
+                score += 1.0
+            scored.append((song, score))
+        scored.sort(key=lambda x: x[1], reverse=True)
+        return [song for song, _ in scored[:k]]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
-        # TODO: Implement explanation logic
-        return "Explanation placeholder"
+        reasons = []
+        if song.genre == user.favorite_genre:
+            reasons.append(f"genre '{song.genre}' matches your favorite")
+        else:
+            reasons.append(f"genre '{song.genre}' differs from your favorite '{user.favorite_genre}'")
+        if song.mood == user.favorite_mood:
+            reasons.append(f"mood '{song.mood}' matches your preference")
+        energy_diff = abs(song.energy - user.target_energy)
+        if energy_diff < 0.1:
+            reasons.append("energy level is very close to your target")
+        elif energy_diff < 0.3:
+            reasons.append("energy level is somewhat close to your target")
+        else:
+            reasons.append("energy level differs from your target")
+        if user.likes_acoustic and song.acousticness > 0.6:
+            reasons.append("has the acoustic sound you enjoy")
+        elif not user.likes_acoustic and song.acousticness < 0.4:
+            reasons.append("has the non-acoustic style you prefer")
+        return "Recommended because: " + "; ".join(reasons) + "."
 
 def load_songs(csv_path: str) -> List[Dict]:
     """
     Loads songs from a CSV file.
     Required by src/main.py
     """
-    # TODO: Implement CSV loading logic
     print(f"Loading songs from {csv_path}...")
-    return []
+    df = pd.read_csv(csv_path)
+    return df.to_dict(orient="records")
 
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
     """
     Functional implementation of the recommendation logic.
     Required by src/main.py
     """
-    # TODO: Implement scoring and ranking logic
-    # Expected return format: (song_dict, score, explanation)
-    return []
+    scored = []
+    for song in songs:
+        score = 0.0
+        reasons = []
+        if song.get("genre") == user_prefs.get("genre"):
+            score += 3.0
+            reasons.append("genre matches")
+        if song.get("mood") == user_prefs.get("mood"):
+            score += 2.0
+            reasons.append("mood matches")
+        energy_score = 2.0 * (1 - abs(song.get("energy", 0) - user_prefs.get("energy", 0.5)))
+        score += energy_score
+        reasons.append(f"energy proximity {energy_score:.2f}")
+        explanation = "Recommended because: " + ", ".join(reasons)
+        scored.append((song, score, explanation))
+    scored.sort(key=lambda x: x[1], reverse=True)
+    return scored[:k]
