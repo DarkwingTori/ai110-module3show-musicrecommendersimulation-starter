@@ -17,54 +17,27 @@ Replace this paragraph with your own summary of what your version does.
 
 ## How The System Works
 
-Real-world music recommenders like Spotify blend two approaches. **Collaborative filtering** looks at the behavior of millions of other users — if people with your listening history also loved a track, the system assumes you will too. **Content-based filtering** ignores other users and instead analyzes the song's own attributes (genre, energy, mood, tempo) to find songs that *sound like* what you already enjoy. This simulation uses a pure content-based approach: it scores every song by comparing its attributes to a user's stated preferences, then surfaces the best matches.
+Real-world recommendation systems like Spotify or YouTube Music use two main approaches. **Collaborative filtering** finds users with similar listening history and recommends what they liked. **Content-based filtering** ignores other users entirely — it compares the features of songs directly to your stated preferences. This project implements content-based filtering, which makes the logic transparent and easy to explain: every score can be broken down factor by factor.
 
-The system prioritizes **genre** first (weight 3.0) because genre is the biggest vibe differentiator — a lofi track and a rock track are fundamentally different listening experiences. **Mood** is weighted second (2.0) because it reflects intent: a user studying wants "focused/chill," not "intense." For numerical features like **energy**, the score rewards closeness to the user's target rather than simply higher or lower values, using the formula `weight × (1 − |song_value − user_target|)`. This means a song with energy 0.85 scores higher for a user targeting 0.8 than a song with energy 1.0 would.
+**Song features used in scoring:**
+- `genre` — the category of music (pop, lofi, rock, jazz, etc.)
+- `mood` — the emotional tone (happy, chill, intense, relaxed, etc.)
+- `energy` — activity level from 0.0 (calm) to 1.0 (intense)
+- `acousticness` — how acoustic vs. electronic the track sounds (0.0–1.0)
 
-### `Song` Object Features
-- `genre` (categorical) — pop, lofi, rock, ambient, jazz, synthwave, indie pop
-- `mood` (categorical) — happy, chill, intense, relaxed, moody, focused
-- `energy` (float 0–1) — how energetic the track feels
-- `valence` (float 0–1) — musical positiveness / emotional brightness
-- `acousticness` (float 0–1) — acoustic vs. electronic texture
-- `tempo_bpm` (float) — beats per minute
+**UserProfile fields used:**
+- `favorite_genre` — the genre the user prefers most
+- `favorite_mood` — the mood the user is looking for
+- `target_energy` — the energy level the user wants (0.0–1.0)
+- `likes_acoustic` — whether the user prefers acoustic-sounding tracks
 
-### `UserProfile` Object Features
-- `favorite_genre` — the genre the user most wants to hear
-- `favorite_mood` — the mood/vibe the user is going for right now
-- `target_energy` — a 0–1 value for how energetic they want the music
-- `likes_acoustic` — boolean preference for acoustic texture
+**Scoring algorithm (max 8.0 points per song):**
+1. +3.0 if genre matches `favorite_genre`
+2. +2.0 if mood matches `favorite_mood`
+3. +0.0 to +2.0 for energy closeness: `2.0 × (1 − |song.energy − target_energy|)`
+4. +1.0 if acousticness preference aligns
 
-### Scoring & Ranking
-Each song receives a score from the Scoring Rule above. All songs are then sorted descending by score (the Ranking Rule), and the top `k` are returned as recommendations.
-
-### Algorithm Recipe
-
-| Signal | Max Points | Formula |
-|---|---|---|
-| Genre match | 2.0 | +2.0 if `song.genre == user.favorite_genre` |
-| Mood match | 1.0 | +1.0 if `song.mood == user.favorite_mood` |
-| Energy proximity | 1.5 | `1.5 × (1 − \|song.energy − user.target_energy\|)` |
-| Acoustic bonus | 0.5 | +0.5 if `user.likes_acoustic` and `song.acousticness > 0.6` |
-| **Max total** | **5.0** | |
-
-### Data Flow
-
-```mermaid
-flowchart TD
-    A["User Preferences\ngenre · mood · target_energy · likes_acoustic"] --> B[Load songs.csv]
-    B --> C{For each song in catalog}
-    C --> D["Score: genre match +2.0"]
-    D --> E["Score: mood match +1.0"]
-    E --> F["Score: energy proximity 0–1.5"]
-    F --> G["Score: acoustic bonus 0–0.5"]
-    G --> H[Total Score for this song]
-    H --> C
-    C --> I["Sort all songs by score ↓"]
-    I --> J["Return Top K Recommendations"]
-```
-
-> **Potential bias:** Genre is the highest-weighted signal (2.0 pts), so a song with a matching mood and near-perfect energy can still be outranked by a weaker song that simply shares the user's genre. The system also has no diversity mechanism — if the catalog leans heavily toward one genre, that genre will dominate every recommendation list regardless of the user's other preferences.
+The recommender scores every song, sorts by score descending, and returns the top k results.
 
 ---
 

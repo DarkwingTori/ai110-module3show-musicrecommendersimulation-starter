@@ -1,7 +1,6 @@
-import csv
 from typing import List, Dict, Tuple, Optional
 from dataclasses import dataclass
-
+import pandas as pd
 
 @dataclass
 class Song:
@@ -20,7 +19,6 @@ class Song:
     danceability: float
     acousticness: float
 
-
 @dataclass
 class UserProfile:
     """
@@ -32,70 +30,6 @@ class UserProfile:
     target_energy: float
     likes_acoustic: bool
 
-
-def _score_song_dict(song: Dict, user: Dict) -> Tuple[float, str]:
-    """
-    Score a single song (as a dict) against a user preferences dict.
-    Returns (score, explanation).
-
-    Scoring recipe:
-      +2.0  genre match
-      +1.0  mood match
-      0–1.5 energy proximity: 1.5 × (1 − |song.energy − user.target_energy|)
-      +0.5  acoustic bonus if user.likes_acoustic and song.acousticness > 0.6
-    Max possible score: 5.0
-    """
-    score = 0.0
-    reasons = []
-
-    if song.get("genre") == user.get("genre"):
-        score += 2.0
-        reasons.append("Genre match (+2.0)")
-
-    if song.get("mood") == user.get("mood"):
-        score += 1.0
-        reasons.append("Mood match (+1.0)")
-
-    energy_diff = abs(float(song.get("energy", 0)) - float(user.get("target_energy", 0.5)))
-    energy_pts = round(1.5 * (1 - energy_diff), 2)
-    score += energy_pts
-    reasons.append(f"Energy proximity (+{energy_pts})")
-
-    if user.get("likes_acoustic") and float(song.get("acousticness", 0)) > 0.6:
-        score += 0.5
-        reasons.append("Acoustic bonus (+0.5)")
-
-    return round(score, 2), ", ".join(reasons)
-
-
-def _score_song_obj(song: Song, user: UserProfile) -> Tuple[float, str]:
-    """
-    Score a single Song dataclass object against a UserProfile.
-    Returns (score, explanation).
-    """
-    score = 0.0
-    reasons = []
-
-    if song.genre == user.favorite_genre:
-        score += 2.0
-        reasons.append("Genre match (+2.0)")
-
-    if song.mood == user.favorite_mood:
-        score += 1.0
-        reasons.append("Mood match (+1.0)")
-
-    energy_diff = abs(song.energy - user.target_energy)
-    energy_pts = round(1.5 * (1 - energy_diff), 2)
-    score += energy_pts
-    reasons.append(f"Energy proximity (+{energy_pts})")
-
-    if user.likes_acoustic and song.acousticness > 0.6:
-        score += 0.5
-        reasons.append("Acoustic bonus (+0.5)")
-
-    return round(score, 2), ", ".join(reasons)
-
-
 class Recommender:
     """
     OOP implementation of the recommendation logic.
@@ -105,43 +39,71 @@ class Recommender:
         self.songs = songs
 
     def recommend(self, user: UserProfile, k: int = 5) -> List[Song]:
-        scored = [(song, _score_song_obj(song, user)[0]) for song in self.songs]
+        scored = []
+        for song in self.songs:
+            score = 0.0
+            if song.genre == user.favorite_genre:
+                score += 3.0
+            if song.mood == user.favorite_mood:
+                score += 2.0
+            score += 2.0 * (1 - abs(song.energy - user.target_energy))
+            if user.likes_acoustic and song.acousticness > 0.6:
+                score += 1.0
+            elif not user.likes_acoustic and song.acousticness < 0.4:
+                score += 1.0
+            scored.append((song, score))
         scored.sort(key=lambda x: x[1], reverse=True)
         return [song for song, _ in scored[:k]]
 
     def explain_recommendation(self, user: UserProfile, song: Song) -> str:
-        _, explanation = _score_song_obj(song, user)
-        return explanation
-
+        reasons = []
+        if song.genre == user.favorite_genre:
+            reasons.append(f"genre '{song.genre}' matches your favorite")
+        else:
+            reasons.append(f"genre '{song.genre}' differs from your favorite '{user.favorite_genre}'")
+        if song.mood == user.favorite_mood:
+            reasons.append(f"mood '{song.mood}' matches your preference")
+        energy_diff = abs(song.energy - user.target_energy)
+        if energy_diff < 0.1:
+            reasons.append("energy level is very close to your target")
+        elif energy_diff < 0.3:
+            reasons.append("energy level is somewhat close to your target")
+        else:
+            reasons.append("energy level differs from your target")
+        if user.likes_acoustic and song.acousticness > 0.6:
+            reasons.append("has the acoustic sound you enjoy")
+        elif not user.likes_acoustic and song.acousticness < 0.4:
+            reasons.append("has the non-acoustic style you prefer")
+        return "Recommended because: " + "; ".join(reasons) + "."
 
 def load_songs(csv_path: str) -> List[Dict]:
     """
     Loads songs from a CSV file.
     Required by src/main.py
     """
-    songs = []
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            row["id"] = int(row["id"])
-            row["energy"] = float(row["energy"])
-            row["tempo_bpm"] = float(row["tempo_bpm"])
-            row["valence"] = float(row["valence"])
-            row["danceability"] = float(row["danceability"])
-            row["acousticness"] = float(row["acousticness"])
-            songs.append(row)
-    return songs
-
+    print(f"Loading songs from {csv_path}...")
+    df = pd.read_csv(csv_path)
+    return df.to_dict(orient="records")
 
 def recommend_songs(user_prefs: Dict, songs: List[Dict], k: int = 5) -> List[Tuple[Dict, float, str]]:
     """
     Functional implementation of the recommendation logic.
     Required by src/main.py
-    Returns list of (song_dict, score, explanation) sorted by score descending.
     """
     scored = []
     for song in songs:
-        score, explanation = _score_song_dict(song, user_prefs)
+        score = 0.0
+        reasons = []
+        if song.get("genre") == user_prefs.get("genre"):
+            score += 3.0
+            reasons.append("genre matches")
+        if song.get("mood") == user_prefs.get("mood"):
+            score += 2.0
+            reasons.append("mood matches")
+        energy_score = 2.0 * (1 - abs(song.get("energy", 0) - user_prefs.get("energy", 0.5)))
+        score += energy_score
+        reasons.append(f"energy proximity {energy_score:.2f}")
+        explanation = "Recommended because: " + ", ".join(reasons)
         scored.append((song, score, explanation))
     scored.sort(key=lambda x: x[1], reverse=True)
     return scored[:k]
