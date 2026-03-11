@@ -98,25 +98,33 @@ You can add more tests in `tests/test_recommender.py`.
 
 ## Experiments You Tried
 
-Use this section to document the experiments you ran. For example:
+**Experiment 1 — Weight Shift (genre ÷ 2, energy × 2)**
 
-- What happened when you changed the weight on genre from 2.0 to 0.5
-- What happened when you added tempo or valence to the score
-- How did your system behave for different types of users
+Changed genre weight from 3.0 → 1.5 and energy weight from 2.0 → 4.0 for the pop/happy/0.85-energy profile. Results for the top 3:
+
+| Rank | Standard weights | Experimental weights |
+|------|-----------------|----------------------|
+| 1 | Sunrise City (7.94) | Sunrise City (8.38) — unchanged |
+| 2 | Gym Hero (5.84) | Rooftop Lights (6.64) |
+| 3 | Rooftop Lights (4.82) | Gym Hero (6.18) |
+
+Gym Hero dropped from rank 2 to rank 3 because it had no mood match — with energy worth more, a song with correct mood but no genre match (Rooftop Lights) overtook it. Sunrise City stayed at #1 because it matched all four factors under both weight schemes. Conclusion: the rankings are sensitive to weight changes, but a full-match song cannot be displaced regardless of weight distribution.
+
+**Experiment 2 — Adversarial Profile (conflicting genre + mood)**
+
+Tested genre: ambient, mood: intense, energy: 0.90. No song in the catalog is both ambient and intense. The top result (Spacewalk Thoughts) scored only 4.76/8.0 and earned 0 points for mood or energy closeness. This revealed that the system cannot detect or warn about conflicting preferences — it silently returns a poor result.
 
 ---
 
 ## Limitations and Risks
 
-Summarize some limitations of your recommender.
+- **Tiny catalog.** 18 songs means genre fans with rare tastes (metal, classical) get mostly off-genre results in positions 2–5.
+- **Genre dominates.** At +3.0 points, genre is 37.5% of the maximum score. A pop song with the wrong mood still beats a perfect-mood non-pop song.
+- **Unused features.** Tempo, valence, and danceability are loaded but never scored. Two songs can feel completely different and receive the same score.
+- **No conflict detection.** If genre and mood/energy preferences contradict each other (e.g., ambient + intense), the system returns a bad result without any warning.
+- **Western bias.** The catalog only covers western popular music genres. No Latin, K-pop, or Afrobeats songs exist, so users from those backgrounds are underserved.
 
-Examples:
-
-- It only works on a tiny catalog
-- It does not understand lyrics or language
-- It might over favor one genre or mood
-
-You will go deeper on this in your model card.
+See [model_card.md](model_card.md) for a detailed breakdown of each limitation.
 
 ---
 
@@ -126,10 +134,9 @@ Read and complete `model_card.md`:
 
 [**Model Card**](model_card.md)
 
-Write 1 to 2 paragraphs here about what you learned:
+Building this recommender showed me how much work a few numerical weights quietly do. Every time the system ran, it was making trade-offs — genre vs. mood, closeness vs. a binary match — and those trade-offs were visible in every result. The most surprising moment was seeing a "perfect" score of 8.0/8.0 for the lofi studier profile and realizing that a perfect result only appeared because the catalog happened to have a song matching all four inputs exactly. Real systems have millions of songs and must still find that match; the math is the same, just at enormous scale.
 
-- about how recommenders turn data into predictions
-- about where bias or unfairness could show up in systems like this
+The clearest bias I found was not in the weights themselves, but in the data. Lofi has three songs in an 18-song catalog. Metal has one. That imbalance means the system is structurally more useful for lofi fans than metal fans before a single line of scoring code runs. This is the same problem real platforms face — if certain genres are underrepresented in training data or catalogs, the algorithm disadvantages those listeners no matter how carefully the weights are tuned. Human judgment is still essential for deciding what data to include, how to weight features, and who the system is actually designed to serve.
 
 
 ---

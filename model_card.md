@@ -18,6 +18,8 @@ It takes four inputs from the user:
 
 It assumes users can describe their preferences as these four values and returns ranked songs with reasons explaining each recommendation.
 
+**Non-Intended Use:** This system should not be used to make real music recommendations for actual users. It has no access to streaming data, cannot learn from listening history, and only has 18 songs in its catalog. It should not be used to rank or judge musical quality, claim that one song is objectively "better" than another, or make any decisions that affect real people's listening experience or career.
+
 ---
 
 ## 3. How the Model Works
@@ -100,8 +102,12 @@ No song in the catalog is both ambient and intense. The top result was Spacewalk
 
 ## 9. Personal Reflection
 
-Building this showed me that even a simple four-factor scoring rule produces surprisingly strong opinions. The genre weight felt obviously right when I wrote it, but testing adversarial profiles revealed that it can completely override what a user actually wants to feel. A person asking for "something intense" should not get a calm ambient song just because they listed ambient as their favorite genre — but that is exactly what happened.
+**Biggest learning moment:** The adversarial profile test was the clearest turning point. I built the scoring logic thinking genre should matter most, and it made sense in isolation. Then a profile with genre: "ambient", mood: "intense", energy: 0.90 completely broke the system — the top result was a calm, quiet ambient song that matched the genre but ignored everything else the user asked for. That moment showed me that weights are assumptions, and assumptions only reveal themselves when you push against them with edge cases.
 
-It also made me realize how much data representation matters. Giving lofi three catalog slots versus metal one is not neutral — it is a design choice that quietly advantages some users over others. Real systems like Spotify face this problem at enormous scale, where catalog gaps in underrepresented genres affect millions of listeners who never see an explanation for why their recommendations feel off. Being able to print "this ranked first because genre match (+3.0), energy proximity (+1.94)" made every bug and bias immediately visible, which made me appreciate explainability as a core design requirement, not a nice-to-have feature.
+**How AI tools helped — and when I needed to double-check:** AI tools were useful for generating the initial scoring logic structure, expanding the song catalog with diverse genres, and suggesting how to format the CLI output. But I had to verify the math manually every time. When I asked for "reward closeness in energy," the suggested formula was right, but I traced through it with actual numbers (|0.82 - 0.80| = 0.02, so 2.0 × 0.98 = 1.96) before trusting it. AI tools are fast at producing plausible code, but they do not tell you whether the logic is actually doing what you want — that requires running it and reading the output critically.
+
+**What surprised me about simple algorithms:** I expected a four-rule scoring system to feel robotic and obvious. What surprised me was how often the results matched musical intuition — Library Rain scoring 8.0/8.0 for the lofi studier profile, or Wildflower Trail appearing in that same list because it was acoustic and chill even though it is folk. A few numerical thresholds, applied consistently, produce something that genuinely feels like a recommendation. The surprise is not that it works — it is that it works for reasons you can read and explain, which most real systems cannot do.
+
+**What I would try next:** I would add valence to the scoring so the system could distinguish between "happy pop" and "sad pop." I would also experiment with allowing users to set two genres with different weights instead of one, and I would try building a simple diversity penalty so the top 5 results cannot all come from the same genre even if they score highest.
 
 ---
